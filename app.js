@@ -1,14 +1,58 @@
+// ===== GLOBAL ERROR HANDLING FOR DEBUGGING =====
+window.addEventListener('error', function(e) {
+  const errMsg = `오류 발생: ${e.message}\n파일: ${e.filename}\n라인: ${e.lineno}:${e.colno}`;
+  console.error(errMsg);
+  const contentEl = document.getElementById('card-content');
+  if (contentEl) {
+    contentEl.innerHTML = `<span style="color: #ff6b6b; font-size: 0.9em; word-break: break-all;">${errMsg.replace(/\n/g, '<br>')}</span>`;
+  }
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const errMsg = `비동기 오류 발생: ${e.reason}`;
+  console.error(errMsg);
+  const contentEl = document.getElementById('card-content');
+  if (contentEl) {
+    contentEl.innerHTML = `<span style="color: #ff6b6b; font-size: 0.9em; word-break: break-all;">${errMsg}</span>`;
+  }
+});
+
 // ===== SUPABASE CONFIG =====
 const SUPABASE_URL = "https://qwfxkzsxqgadxmpobrib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ed8gyhILxu7uWq8FXXIkgQ_jm1Alk0s";
 let supabase = null;
 
-try {
-  if (window.supabase && typeof window.supabase.createClient === 'function') {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
-} catch (e) {
-  console.warn("Failed to initialize Supabase client:", e);
+// Function to dynamically load Supabase JS SDK with a timeout
+function loadSupabaseSDK() {
+  return new Promise((resolve, reject) => {
+    if (window.supabase) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    script.async = true;
+
+    const timeout = setTimeout(() => {
+      script.onload = null;
+      script.onerror = null;
+      if (script.parentNode) {
+        document.head.removeChild(script);
+      }
+      reject(new Error("Supabase SDK 로드 시간 초과 (네트워크 연결 확인)"));
+    }, 2500); // 2.5 seconds timeout
+
+    script.onload = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+
+    script.onerror = (e) => {
+      clearTimeout(timeout);
+      reject(new Error("Supabase SDK 로드 실패 (CDN 차단 또는 오프라인)"));
+    };
+
+    document.head.appendChild(script);
+  });
 }
 
 // ===== APP STATE =====
@@ -71,6 +115,16 @@ async function init() {
   cardContent.textContent = "로딩 중...";
   detailText.textContent = "";
   if (cardActions) cardActions.style.display = 'none';
+
+  // Try loading Supabase SDK dynamically and initialize the client
+  try {
+    await loadSupabaseSDK();
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+  } catch (e) {
+    console.warn("Failed to load/initialize Supabase SDK, will use local fallback directly:", e);
+  }
 
   if (supabase) {
     try {
