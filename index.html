@@ -23,6 +23,10 @@
       <div class="logo">
         <span class="logo-icon">💡</span>
         <span class="logo-text">FactBite</span>
+        <div class="db-status-badge" id="db-status-badge">
+          <span class="status-dot"></span>
+          <span class="status-text">연결 중...</span>
+        </div>
       </div>
     </header>
 
@@ -39,11 +43,8 @@
         <!-- Feedback Actions -->
         <div class="card-actions">
           <button class="action-btn action-btn--like" id="btn-like" aria-label="좋아요">
-            <span class="action-icon">👍</span>
+            <span class="action-icon">🤍</span>
             <span class="action-count" id="like-count">0</span>
-          </button>
-          <button class="action-btn action-btn--dislike" id="btn-dislike" aria-label="싫어요">
-            <span class="action-icon">👎</span>
           </button>
         </div>
 
@@ -77,6 +78,7 @@
     </footer>
   </div>
 
+  <script src="supabase.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

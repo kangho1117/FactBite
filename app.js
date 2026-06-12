@@ -19,40 +19,14 @@ window.addEventListener('unhandledrejection', function(e) {
 // ===== SUPABASE CONFIG =====
 const SUPABASE_URL = "https://qwfxkzsxqgadxmpobrib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ed8gyhILxu7uWq8FXXIkgQ_jm1Alk0s";
-let supabase = null;
+let supabaseClient = null;
 
-// Function to dynamically load Supabase JS SDK with a timeout
-function loadSupabaseSDK() {
-  return new Promise((resolve, reject) => {
-    if (window.supabase) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    script.async = true;
-
-    const timeout = setTimeout(() => {
-      script.onload = null;
-      script.onerror = null;
-      if (script.parentNode) {
-        document.head.removeChild(script);
-      }
-      reject(new Error("Supabase SDK 로드 시간 초과 (네트워크 연결 확인)"));
-    }, 2500); // 2.5 seconds timeout
-
-    script.onload = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    script.onerror = (e) => {
-      clearTimeout(timeout);
-      reject(new Error("Supabase SDK 로드 실패 (CDN 차단 또는 오프라인)"));
-    };
-
-    document.head.appendChild(script);
-  });
+try {
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch (e) {
+  console.warn("Failed to initialize Supabase client:", e);
 }
 
 // ===== APP STATE =====
@@ -73,10 +47,9 @@ const btnPrev = document.getElementById('btn-prev');
 const btnDetail = document.getElementById('btn-detail');
 const btnNext = document.getElementById('btn-next');
 
-// Like/Dislike Buttons
+// Like Button
 const cardActions = document.querySelector('.card-actions');
 const btnLike = document.getElementById('btn-like');
-const btnDislike = document.getElementById('btn-dislike');
 const likeCount = document.getElementById('like-count');
 
 // ===== UTILITY =====
@@ -116,26 +89,20 @@ async function init() {
   detailText.textContent = "";
   if (cardActions) cardActions.style.display = 'none';
 
-  // Try loading Supabase SDK dynamically and initialize the client
-  try {
-    await loadSupabaseSDK();
-    if (window.supabase && typeof window.supabase.createClient === 'function') {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    }
-  } catch (e) {
-    console.warn("Failed to load/initialize Supabase SDK, will use local fallback directly:", e);
-  }
+  const statusBadge = document.getElementById('db-status-badge');
 
-  if (supabase) {
+  if (supabaseClient) {
     try {
-      // 3.5 seconds timeout to prevent hanging on network blocks
-      const fetchPromise = supabase
-        .from('facts')
-        .select('id, short, detail, likes')
-        .order('id', { ascending: true });
+      // Wrap the thenable in a native Promise to prevent Promise.race incompatibilities
+      const fetchPromise = Promise.resolve(
+        supabaseClient
+          .from('facts')
+          .select('id, short, detail, likes')
+          .order('id', { ascending: true })
+      );
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Connection timeout")), 3500)
+        setTimeout(() => reject(new Error("서버 응답 시간 초과")), 3500)
       );
 
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
@@ -143,22 +110,53 @@ async function init() {
       if (data && data.length > 0) {
         shuffledFacts = shuffleArray(data);
         currentIndex = 0;
+        
+        // Update status badge to Connected
+        if (statusBadge) {
+          statusBadge.className = 'db-status-badge connected';
+          statusBadge.querySelector('.status-text').textContent = 'DB 연결됨';
+        }
+        
         renderCard(false);
         return;
       }
     } catch (e) {
       console.warn("Supabase fetch failed, falling back to local dataset:", e);
+      alert("DB 데이터 조회 실패 (로컬 모드로 전환됩니다):\n" + (e.message || JSON.stringify(e)));
     }
+  } else {
+    console.warn("Supabase client not initialized");
+    alert("Supabase SDK 로드 실패 또는 클라이언트 초기화 실패 (로컬 모드로 전환됩니다).");
   }
 
   // Fallback to local data.js
   const fallbackData = (typeof FACTS !== 'undefined') ? FACTS : [];
   if (fallbackData.length > 0) {
+    // Dynamically assign IDs and default likes to local items so Like/Dislike functions work
+    fallbackData.forEach((item, index) => {
+      if (!item.id) {
+        item.id = index + 1;
+      }
+      if (item.likes === undefined) {
+        item.likes = 0;
+      }
+    });
     shuffledFacts = shuffleArray(fallbackData);
     currentIndex = 0;
+    
+    // Update status badge to Fallback (Local Mode)
+    if (statusBadge) {
+      statusBadge.className = 'db-status-badge fallback';
+      statusBadge.querySelector('.status-text').textContent = '로컬 모드';
+    }
+    
     renderCard(false);
   } else {
     cardContent.textContent = "데이터를 로드하지 못했습니다. 인터넷 연결을 확인해 주세요.";
+    if (statusBadge) {
+      statusBadge.className = 'db-status-badge error';
+      statusBadge.querySelector('.status-text').textContent = '연결 오류';
+    }
   }
 }
 
@@ -195,9 +193,9 @@ function renderCard(animate = true) {
       }
     }
 
-    // Toggle actions panel and render votes
+    // Toggle actions panel and render votes (Always visible if item has ID)
     if (cardActions) {
-      if (!item.id || !supabase) {
+      if (!item.id) {
         cardActions.style.display = 'none';
       } else {
         cardActions.style.display = 'flex';
@@ -225,90 +223,57 @@ function renderCard(animate = true) {
 
 // ===== VOTE STATE & UI UPDATE =====
 function updateVoteUI(item) {
-  if (!item || !btnLike || !btnDislike || !likeCount) return;
+  if (!item || !btnLike || !likeCount) return;
   const currentVote = getVote(item.id);
 
-  btnLike.classList.toggle('active', currentVote === 'like');
-  btnDislike.classList.toggle('active', currentVote === 'dislike');
+  const isActive = currentVote === 'like';
+  btnLike.classList.toggle('active', isActive);
+  btnLike.querySelector('.action-icon').textContent = isActive ? '❤️' : '🤍';
   likeCount.textContent = item.likes || 0;
 }
 
 function setButtonsDisabled(disabled) {
   buttonsDisabled = disabled;
   if (btnLike) btnLike.disabled = disabled;
-  if (btnDislike) btnDislike.disabled = disabled;
 }
 
 async function handleLikeClick() {
-  if (buttonsDisabled || !supabase) return;
+  if (buttonsDisabled) return;
   const item = shuffledFacts[currentIndex];
   if (!item || !item.id) return;
 
-  const key = `vote_${item.id}`;
   const currentVote = getVote(item.id);
-
   setButtonsDisabled(true);
 
   try {
-    if (currentVote === 'like') {
-      // Cancel like (-1)
-      const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
-      if (error) throw error;
-      item.likes = Math.max(0, (item.likes || 0) - 1);
-      setVote(item.id, null);
-    } else if (currentVote === 'dislike') {
-      // Change dislike to like (+2)
-      await supabase.rpc('increment_likes', { row_id: item.id });
-      await supabase.rpc('increment_likes', { row_id: item.id });
-      item.likes = (item.likes || 0) + 2;
-      setVote(item.id, 'like');
+    if (supabaseClient) {
+      if (currentVote === 'like') {
+        // Cancel like (-1)
+        const { error } = await supabaseClient.rpc('decrement_likes', { row_id: item.id });
+        if (error) throw error;
+        item.likes = Math.max(0, (item.likes || 0) - 1);
+        setVote(item.id, null);
+      } else {
+        // Neutral to like (+1)
+        const { error } = await supabaseClient.rpc('increment_likes', { row_id: item.id });
+        if (error) throw error;
+        item.likes = (item.likes || 0) + 1;
+        setVote(item.id, 'like');
+      }
     } else {
-      // Neutral to like (+1)
-      const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
-      if (error) throw error;
-      item.likes = (item.likes || 0) + 1;
-      setVote(item.id, 'like');
+      // Local fallback mode voting
+      if (currentVote === 'like') {
+        item.likes = Math.max(0, (item.likes || 0) - 1);
+        setVote(item.id, null);
+      } else {
+        item.likes = (item.likes || 0) + 1;
+        setVote(item.id, 'like');
+      }
     }
     updateVoteUI(item);
   } catch (e) {
     console.error("좋아요 처리 실패:", e);
-  } finally {
-    setButtonsDisabled(false);
-  }
-}
-
-async function handleDislikeClick() {
-  if (buttonsDisabled || !supabase) return;
-  const item = shuffledFacts[currentIndex];
-  if (!item || !item.id) return;
-
-  const currentVote = getVote(item.id);
-
-  setButtonsDisabled(true);
-
-  try {
-    if (currentVote === 'dislike') {
-      // Cancel dislike (+1)
-      const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
-      if (error) throw error;
-      item.likes = (item.likes || 0) + 1;
-      setVote(item.id, null);
-    } else if (currentVote === 'like') {
-      // Change like to dislike (-2)
-      await supabase.rpc('decrement_likes', { row_id: item.id });
-      await supabase.rpc('decrement_likes', { row_id: item.id });
-      item.likes = Math.max(0, (item.likes || 0) - 2);
-      setVote(item.id, 'dislike');
-    } else {
-      // Neutral to dislike (-1)
-      const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
-      if (error) throw error;
-      item.likes = Math.max(0, (item.likes || 0) - 1);
-      setVote(item.id, 'dislike');
-    }
-    updateVoteUI(item);
-  } catch (e) {
-    console.error("싫어요 처리 실패:", e);
+    alert("좋아요 처리 실패: " + (e.message || e));
   } finally {
     setButtonsDisabled(false);
   }
@@ -343,7 +308,6 @@ if (btnDetail) btnDetail.addEventListener('click', toggleDetail);
 if (btnNext) btnNext.addEventListener('click', nextCard);
 
 if (btnLike) btnLike.addEventListener('click', handleLikeClick);
-if (btnDislike) btnDislike.addEventListener('click', handleDislikeClick);
 
 // Mouse follow effect on buttons
 document.querySelectorAll('.btn').forEach(btn => {
