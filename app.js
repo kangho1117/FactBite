@@ -89,8 +89,6 @@ async function init() {
   detailText.textContent = "";
   if (cardActions) cardActions.style.display = 'none';
 
-  const statusBadge = document.getElementById('db-status-badge');
-
   if (supabaseClient) {
     try {
       // Wrap the thenable in a native Promise to prevent Promise.race incompatibilities
@@ -110,12 +108,6 @@ async function init() {
       if (data && data.length > 0) {
         shuffledFacts = shuffleArray(data);
         currentIndex = 0;
-        
-        // Update status badge to Connected
-        if (statusBadge) {
-          statusBadge.className = 'db-status-badge connected';
-          statusBadge.querySelector('.status-text').textContent = 'DB 연결됨';
-        }
         
         renderCard(false);
         return;
@@ -144,19 +136,9 @@ async function init() {
     shuffledFacts = shuffleArray(fallbackData);
     currentIndex = 0;
     
-    // Update status badge to Fallback (Local Mode)
-    if (statusBadge) {
-      statusBadge.className = 'db-status-badge fallback';
-      statusBadge.querySelector('.status-text').textContent = '로컬 모드';
-    }
-    
     renderCard(false);
   } else {
     cardContent.textContent = "데이터를 로드하지 못했습니다. 인터넷 연결을 확인해 주세요.";
-    if (statusBadge) {
-      statusBadge.className = 'db-status-badge error';
-      statusBadge.querySelector('.status-text').textContent = '연결 오류';
-    }
   }
 }
 
