@@ -1,15 +1,9 @@
 // ===== APP STATE =====
-let isJokeMode = false;
 let currentIndex = 0;
 let isDetailOpen = false;
 let shuffledFacts = [];
-let shuffledJokes = [];
 
 // ===== DOM ELEMENTS =====
-const toggleSwitch = document.getElementById('toggle-switch');
-const toggleThumb = document.getElementById('toggle-thumb');
-const labelFact = document.getElementById('label-fact');
-const labelJoke = document.getElementById('label-joke');
 const card = document.getElementById('card');
 const cardBadge = document.getElementById('card-badge');
 const badgeText = document.getElementById('badge-text');
@@ -31,33 +25,22 @@ function shuffleArray(arr) {
   return shuffled;
 }
 
-function getCurrentData() {
-  return isJokeMode ? shuffledJokes : shuffledFacts;
-}
-
 // ===== INIT =====
 function init() {
   shuffledFacts = shuffleArray(FACTS);
-  shuffledJokes = shuffleArray(JOKES);
   currentIndex = 0;
   renderCard(false);
 }
 
 // ===== RENDER =====
 function renderCard(animate = true) {
-  const data = getCurrentData();
-  const item = data[currentIndex];
+  const item = shuffledFacts[currentIndex];
 
   const update = () => {
-    // Update badge
+    // Update badge (Static for facts)
     const badgeIcon = cardBadge.querySelector('.badge-icon');
-    if (isJokeMode) {
-      badgeIcon.textContent = '😂';
-      badgeText.textContent = '농담';
-    } else {
-      badgeIcon.textContent = '📚';
-      badgeText.textContent = '상식';
-    }
+    badgeIcon.textContent = '📚';
+    badgeText.textContent = '상식';
 
     // Update number
     cardNumber.textContent = `#${currentIndex + 1}`;
@@ -72,6 +55,7 @@ function renderCard(animate = true) {
     isDetailOpen = false;
     cardDetail.classList.remove('open');
     btnDetail.querySelector('span:last-child').textContent = '자세히';
+    btnDetail.querySelector('.btn-icon').textContent = '🔍';
   };
 
   if (animate) {
@@ -91,43 +75,15 @@ function renderCard(animate = true) {
   }
 }
 
-// ===== TOGGLE MODE =====
-function toggleMode() {
-  isJokeMode = !isJokeMode;
-  currentIndex = 0;
-
-  // Update body class
-  document.body.classList.toggle('joke-mode', isJokeMode);
-
-  // Update labels
-  labelFact.classList.toggle('active', !isJokeMode);
-  labelJoke.classList.toggle('active', isJokeMode);
-
-  // Update logo icon
-  const logoIcon = document.querySelector('.logo-icon');
-  logoIcon.textContent = isJokeMode ? '😄' : '💡';
-
-  // Re-shuffle on mode switch
-  if (isJokeMode) {
-    shuffledJokes = shuffleArray(JOKES);
-  } else {
-    shuffledFacts = shuffleArray(FACTS);
-  }
-
-  renderCard(true);
-}
-
 // ===== NEXT =====
 function nextCard() {
-  const data = getCurrentData();
-  currentIndex = (currentIndex + 1) % data.length;
+  currentIndex = (currentIndex + 1) % shuffledFacts.length;
   renderCard(true);
 }
 
 // ===== PREV =====
 function prevCard() {
-  const data = getCurrentData();
-  currentIndex = (currentIndex - 1 + data.length) % data.length;
+  currentIndex = (currentIndex - 1 + shuffledFacts.length) % shuffledFacts.length;
   renderCard(true);
 }
 
@@ -140,9 +96,6 @@ function toggleDetail() {
 }
 
 // ===== EVENT LISTENERS =====
-toggleSwitch.addEventListener('click', toggleMode);
-labelFact.addEventListener('click', () => { if (isJokeMode) toggleMode(); });
-labelJoke.addEventListener('click', () => { if (!isJokeMode) toggleMode(); });
 btnPrev.addEventListener('click', prevCard);
 btnDetail.addEventListener('click', toggleDetail);
 btnNext.addEventListener('click', nextCard);
@@ -169,9 +122,6 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
     e.preventDefault();
     toggleDetail();
-  } else if (e.key === 'Tab') {
-    e.preventDefault();
-    toggleMode();
   }
 });
 
