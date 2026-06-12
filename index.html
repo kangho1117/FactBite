@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FactBite – 한입 크기 상식 & 농담</title>
+  <meta name="description" content="매일 새로운 상식과 농담을 한입 크기로! FactBite에서 재미있는 지식을 만나보세요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header" id="header">
+      <div class="logo">
+        <span class="logo-icon">💡</span>
+        <span class="logo-text">FactBite</span>
+      </div>
+      <div class="toggle-wrapper" id="toggle-wrapper">
+        <span class="toggle-label toggle-label--left active" id="label-fact">상식</span>
+        <button class="toggle-switch" id="toggle-switch" aria-label="상식과 농담 전환">
+          <span class="toggle-thumb" id="toggle-thumb"></span>
+        </button>
+        <span class="toggle-label toggle-label--right" id="label-joke">농담</span>
+      </div>
+    </header>
+
+    <!-- Card -->
+    <main class="card-area">
+      <div class="card" id="card">
+        <div class="card-badge" id="card-badge">
+          <span class="badge-icon">📚</span>
+          <span class="badge-text" id="badge-text">상식</span>
+        </div>
+        <div class="card-number" id="card-number">#1</div>
+        <p class="card-content" id="card-content">로딩 중...</p>
+
+        <!-- Detail Section -->
+        <div class="card-detail" id="card-detail">
+          <div class="detail-divider"></div>
+          <p class="detail-text" id="detail-text"></p>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="button-group">
+        <button class="btn btn--prev" id="btn-prev">
+          <span class="btn-icon">←</span>
+          <span>이전</span>
+        </button>
+        <button class="btn btn--detail" id="btn-detail">
+          <span class="btn-icon">🔍</span>
+          <span>자세히</span>
+        </button>
+        <button class="btn btn--next" id="btn-next">
+          <span>다음</span>
+          <span class="btn-icon">→</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>매일 새로운 지식을 한입 크기로 🍿</p>
+    </footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
