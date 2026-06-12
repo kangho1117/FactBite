@@ -1,7 +1,17 @@
+// ===== SUPABASE CONFIG =====
+const SUPABASE_URL = "https://qwfxkzsxqgadxmpobrib.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Ed8gyhILxu7uWq8FXXIkgQ_jm1Alk0s";
+let supabase = null;
+
+if (window.supabase) {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
 // ===== APP STATE =====
 let currentIndex = 0;
 let isDetailOpen = false;
 let shuffledFacts = [];
+let buttonsDisabled = false;
 
 // ===== DOM ELEMENTS =====
 const card = document.getElementById('card');
@@ -15,6 +25,12 @@ const btnPrev = document.getElementById('btn-prev');
 const btnDetail = document.getElementById('btn-detail');
 const btnNext = document.getElementById('btn-next');
 
+// Like/Dislike Buttons
+const cardActions = document.querySelector('.card-actions');
+const btnLike = document.getElementById('btn-like');
+const btnDislike = document.getElementById('btn-dislike');
+const likeCount = document.getElementById('like-count');
+
 // ===== UTILITY =====
 function shuffleArray(arr) {
   const shuffled = [...arr];
@@ -26,7 +42,31 @@ function shuffleArray(arr) {
 }
 
 // ===== INIT =====
-function init() {
+async function init() {
+  cardContent.textContent = "로딩 중...";
+  detailText.textContent = "";
+  if (cardActions) cardActions.style.display = 'none';
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('facts')
+        .select('id, short, detail, likes')
+        .order('id', { ascending: true });
+        
+      if (error) throw error;
+      if (data && data.length > 0) {
+        shuffledFacts = shuffleArray(data);
+        currentIndex = 0;
+        renderCard(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("Supabase fetch failed, falling back to local dataset:", e);
+    }
+  }
+
+  // Fallback to local data.js
   shuffledFacts = shuffleArray(FACTS);
   currentIndex = 0;
   renderCard(false);
@@ -61,6 +101,16 @@ function renderCard(animate = true) {
       btnDetail.querySelector('span:last-child').textContent = '접기';
       btnDetail.querySelector('.btn-icon').textContent = '📖';
     }
+
+    // Toggle actions panel and render votes
+    if (cardActions) {
+      if (!item.id || !supabase) {
+        cardActions.style.display = 'none';
+      } else {
+        cardActions.style.display = 'flex';
+        updateVoteUI(item);
+      }
+    }
   };
 
   if (animate) {
@@ -77,6 +127,99 @@ function renderCard(animate = true) {
     });
   } else {
     update();
+  }
+}
+
+// ===== VOTE STATE & UI UPDATE =====
+function updateVoteUI(item) {
+  if (!item || !btnLike || !btnDislike || !likeCount) return;
+  const key = `vote_${item.id}`;
+  const currentVote = localStorage.getItem(key);
+
+  btnLike.classList.toggle('active', currentVote === 'like');
+  btnDislike.classList.toggle('active', currentVote === 'dislike');
+  likeCount.textContent = item.likes || 0;
+}
+
+function setButtonsDisabled(disabled) {
+  buttonsDisabled = disabled;
+  if (btnLike) btnLike.disabled = disabled;
+  if (btnDislike) btnDislike.disabled = disabled;
+}
+
+async function handleLikeClick() {
+  if (buttonsDisabled || !supabase) return;
+  const item = shuffledFacts[currentIndex];
+  if (!item || !item.id) return;
+
+  const key = `vote_${item.id}`;
+  const currentVote = localStorage.getItem(key);
+
+  setButtonsDisabled(true);
+
+  try {
+    if (currentVote === 'like') {
+      // Cancel like (-1)
+      const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
+      if (error) throw error;
+      item.likes = Math.max(0, (item.likes || 0) - 1);
+      localStorage.removeItem(key);
+    } else if (currentVote === 'dislike') {
+      // Change dislike to like (+2)
+      await supabase.rpc('increment_likes', { row_id: item.id });
+      await supabase.rpc('increment_likes', { row_id: item.id });
+      item.likes = (item.likes || 0) + 2;
+      localStorage.setItem(key, 'like');
+    } else {
+      // Neutral to like (+1)
+      const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
+      if (error) throw error;
+      item.likes = (item.likes || 0) + 1;
+      localStorage.setItem(key, 'like');
+    }
+    updateVoteUI(item);
+  } catch (e) {
+    console.error("좋아요 처리 실패:", e);
+  } finally {
+    setButtonsDisabled(false);
+  }
+}
+
+async function handleDislikeClick() {
+  if (buttonsDisabled || !supabase) return;
+  const item = shuffledFacts[currentIndex];
+  if (!item || !item.id) return;
+
+  const key = `vote_${item.id}`;
+  const currentVote = localStorage.getItem(key);
+
+  setButtonsDisabled(true);
+
+  try {
+    if (currentVote === 'dislike') {
+      // Cancel dislike (+1)
+      const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
+      if (error) throw error;
+      item.likes = (item.likes || 0) + 1;
+      localStorage.removeItem(key);
+    } else if (currentVote === 'like') {
+      // Change like to dislike (-2)
+      await supabase.rpc('decrement_likes', { row_id: item.id });
+      await supabase.rpc('decrement_likes', { row_id: item.id });
+      item.likes = Math.max(0, (item.likes || 0) - 2);
+      localStorage.setItem(key, 'dislike');
+    } else {
+      // Neutral to dislike (-1)
+      const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
+      if (error) throw error;
+      item.likes = Math.max(0, (item.likes || 0) - 1);
+      localStorage.setItem(key, 'dislike');
+    }
+    updateVoteUI(item);
+  } catch (e) {
+    console.error("싫어요 처리 실패:", e);
+  } finally {
+    setButtonsDisabled(false);
   }
 }
 
@@ -104,6 +247,9 @@ function toggleDetail() {
 btnPrev.addEventListener('click', prevCard);
 btnDetail.addEventListener('click', toggleDetail);
 btnNext.addEventListener('click', nextCard);
+
+if (btnLike) btnLike.addEventListener('click', handleLikeClick);
+if (btnDislike) btnDislike.addEventListener('click', handleDislikeClick);
 
 // Mouse follow effect on buttons
 document.querySelectorAll('.btn').forEach(btn => {

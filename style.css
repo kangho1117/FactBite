@@ -414,3 +414,80 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== CARD ACTIONS (LIKE/DISLIKE) ===== */
+.card-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0 10px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+  transition: all 0.3s var(--ease-spring);
+  outline: none;
+  user-select: none;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  color: var(--text-primary);
+}
+
+.action-btn:active {
+  transform: translateY(0) scale(0.92);
+}
+
+/* Like Button States */
+.action-btn--like:hover {
+  border-color: rgba(108, 99, 255, 0.3);
+  background: rgba(108, 99, 255, 0.08);
+  box-shadow: 0 4px 15px rgba(108, 99, 255, 0.15);
+}
+
+.action-btn--like.active {
+  background: var(--accent-fact);
+  border-color: var(--accent-fact);
+  color: white;
+  box-shadow: 0 4px 20px var(--accent-fact-glow);
+}
+
+.action-btn--like.active .action-count {
+  color: white;
+}
+
+.action-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: color 0.3s var(--ease-smooth);
+}
+
+/* Dislike Button States */
+.action-btn--dislike:hover {
+  border-color: rgba(255, 77, 77, 0.3);
+  background: rgba(255, 77, 77, 0.08);
+  box-shadow: 0 4px 15px rgba(255, 77, 77, 0.15);
+}
+
+.action-btn--dislike.active {
+  background: #ff4d4d;
+  border-color: #ff4d4d;
+  box-shadow: 0 4px 20px rgba(255, 77, 77, 0.3);
+}
+
