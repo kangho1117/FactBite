@@ -51,11 +51,16 @@ function renderCard(animate = true) {
     // Update detail
     detailText.textContent = item.detail;
 
-    // Close detail
-    isDetailOpen = false;
-    cardDetail.classList.remove('open');
-    btnDetail.querySelector('span:last-child').textContent = '자세히';
-    btnDetail.querySelector('.btn-icon').textContent = '🔍';
+    // Keep detail state if it was already open
+    if (!isDetailOpen) {
+      cardDetail.classList.remove('open');
+      btnDetail.querySelector('span:last-child').textContent = '자세히';
+      btnDetail.querySelector('.btn-icon').textContent = '🔍';
+    } else {
+      cardDetail.classList.add('open');
+      btnDetail.querySelector('span:last-child').textContent = '접기';
+      btnDetail.querySelector('.btn-icon').textContent = '📖';
+    }
   };
 
   if (animate) {
