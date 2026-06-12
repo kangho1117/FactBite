@@ -3,8 +3,12 @@ const SUPABASE_URL = "https://qwfxkzsxqgadxmpobrib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ed8gyhILxu7uWq8FXXIkgQ_jm1Alk0s";
 let supabase = null;
 
-if (window.supabase) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+try {
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch (e) {
+  console.warn("Failed to initialize Supabase client:", e);
 }
 
 // ===== APP STATE =====
@@ -41,6 +45,27 @@ function shuffleArray(arr) {
   return shuffled;
 }
 
+// Safe Local Storage accessors
+function getVote(id) {
+  try {
+    return localStorage.getItem(`vote_${id}`);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setVote(id, value) {
+  try {
+    if (value) {
+      localStorage.setItem(`vote_${id}`, value);
+    } else {
+      localStorage.removeItem(`vote_${id}`);
+    }
+  } catch (e) {
+    // Ignore storage issues (e.g. private browsing cookies disabled)
+  }
+}
+
 // ===== INIT =====
 async function init() {
   cardContent.textContent = "로딩 중...";
@@ -49,11 +74,17 @@ async function init() {
 
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      // 3.5 seconds timeout to prevent hanging on network blocks
+      const fetchPromise = supabase
         .from('facts')
         .select('id, short, detail, likes')
         .order('id', { ascending: true });
-        
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 3500)
+      );
+
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) throw error;
       if (data && data.length > 0) {
         shuffledFacts = shuffleArray(data);
@@ -67,39 +98,47 @@ async function init() {
   }
 
   // Fallback to local data.js
-  shuffledFacts = shuffleArray(FACTS);
-  currentIndex = 0;
-  renderCard(false);
+  const fallbackData = (typeof FACTS !== 'undefined') ? FACTS : [];
+  if (fallbackData.length > 0) {
+    shuffledFacts = shuffleArray(fallbackData);
+    currentIndex = 0;
+    renderCard(false);
+  } else {
+    cardContent.textContent = "데이터를 로드하지 못했습니다. 인터넷 연결을 확인해 주세요.";
+  }
 }
 
 // ===== RENDER =====
 function renderCard(animate = true) {
+  if (shuffledFacts.length === 0) return;
   const item = shuffledFacts[currentIndex];
 
   const update = () => {
     // Update badge (Static for facts)
     const badgeIcon = cardBadge.querySelector('.badge-icon');
-    badgeIcon.textContent = '📚';
-    badgeText.textContent = '상식';
+    if (badgeIcon) badgeIcon.textContent = '📚';
+    if (badgeText) badgeText.textContent = '상식';
 
     // Update number
-    cardNumber.textContent = `#${currentIndex + 1}`;
+    if (cardNumber) cardNumber.textContent = `#${currentIndex + 1}`;
 
     // Update content
-    cardContent.textContent = item.short;
+    if (cardContent) cardContent.textContent = item.short;
 
     // Update detail
-    detailText.textContent = item.detail;
+    if (detailText) detailText.textContent = item.detail;
 
     // Keep detail state if it was already open
-    if (!isDetailOpen) {
-      cardDetail.classList.remove('open');
-      btnDetail.querySelector('span:last-child').textContent = '자세히';
-      btnDetail.querySelector('.btn-icon').textContent = '🔍';
-    } else {
-      cardDetail.classList.add('open');
-      btnDetail.querySelector('span:last-child').textContent = '접기';
-      btnDetail.querySelector('.btn-icon').textContent = '📖';
+    if (cardDetail && btnDetail) {
+      if (!isDetailOpen) {
+        cardDetail.classList.remove('open');
+        btnDetail.querySelector('span:last-child').textContent = '자세히';
+        btnDetail.querySelector('.btn-icon').textContent = '🔍';
+      } else {
+        cardDetail.classList.add('open');
+        btnDetail.querySelector('span:last-child').textContent = '접기';
+        btnDetail.querySelector('.btn-icon').textContent = '📖';
+      }
     }
 
     // Toggle actions panel and render votes
@@ -113,7 +152,7 @@ function renderCard(animate = true) {
     }
   };
 
-  if (animate) {
+  if (animate && card) {
     card.classList.add('fade-out');
     card.addEventListener('animationend', function handler() {
       card.removeEventListener('animationend', handler);
@@ -133,8 +172,7 @@ function renderCard(animate = true) {
 // ===== VOTE STATE & UI UPDATE =====
 function updateVoteUI(item) {
   if (!item || !btnLike || !btnDislike || !likeCount) return;
-  const key = `vote_${item.id}`;
-  const currentVote = localStorage.getItem(key);
+  const currentVote = getVote(item.id);
 
   btnLike.classList.toggle('active', currentVote === 'like');
   btnDislike.classList.toggle('active', currentVote === 'dislike');
@@ -153,7 +191,7 @@ async function handleLikeClick() {
   if (!item || !item.id) return;
 
   const key = `vote_${item.id}`;
-  const currentVote = localStorage.getItem(key);
+  const currentVote = getVote(item.id);
 
   setButtonsDisabled(true);
 
@@ -163,19 +201,19 @@ async function handleLikeClick() {
       const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
       if (error) throw error;
       item.likes = Math.max(0, (item.likes || 0) - 1);
-      localStorage.removeItem(key);
+      setVote(item.id, null);
     } else if (currentVote === 'dislike') {
       // Change dislike to like (+2)
       await supabase.rpc('increment_likes', { row_id: item.id });
       await supabase.rpc('increment_likes', { row_id: item.id });
       item.likes = (item.likes || 0) + 2;
-      localStorage.setItem(key, 'like');
+      setVote(item.id, 'like');
     } else {
       // Neutral to like (+1)
       const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
       if (error) throw error;
       item.likes = (item.likes || 0) + 1;
-      localStorage.setItem(key, 'like');
+      setVote(item.id, 'like');
     }
     updateVoteUI(item);
   } catch (e) {
@@ -190,8 +228,7 @@ async function handleDislikeClick() {
   const item = shuffledFacts[currentIndex];
   if (!item || !item.id) return;
 
-  const key = `vote_${item.id}`;
-  const currentVote = localStorage.getItem(key);
+  const currentVote = getVote(item.id);
 
   setButtonsDisabled(true);
 
@@ -201,19 +238,19 @@ async function handleDislikeClick() {
       const { error } = await supabase.rpc('increment_likes', { row_id: item.id });
       if (error) throw error;
       item.likes = (item.likes || 0) + 1;
-      localStorage.removeItem(key);
+      setVote(item.id, null);
     } else if (currentVote === 'like') {
       // Change like to dislike (-2)
       await supabase.rpc('decrement_likes', { row_id: item.id });
       await supabase.rpc('decrement_likes', { row_id: item.id });
       item.likes = Math.max(0, (item.likes || 0) - 2);
-      localStorage.setItem(key, 'dislike');
+      setVote(item.id, 'dislike');
     } else {
       // Neutral to dislike (-1)
       const { error } = await supabase.rpc('decrement_likes', { row_id: item.id });
       if (error) throw error;
       item.likes = Math.max(0, (item.likes || 0) - 1);
-      localStorage.setItem(key, 'dislike');
+      setVote(item.id, 'dislike');
     }
     updateVoteUI(item);
   } catch (e) {
@@ -225,18 +262,21 @@ async function handleDislikeClick() {
 
 // ===== NEXT =====
 function nextCard() {
+  if (shuffledFacts.length === 0) return;
   currentIndex = (currentIndex + 1) % shuffledFacts.length;
   renderCard(true);
 }
 
 // ===== PREV =====
 function prevCard() {
+  if (shuffledFacts.length === 0) return;
   currentIndex = (currentIndex - 1 + shuffledFacts.length) % shuffledFacts.length;
   renderCard(true);
 }
 
 // ===== DETAIL TOGGLE =====
 function toggleDetail() {
+  if (!cardDetail || !btnDetail) return;
   isDetailOpen = !isDetailOpen;
   cardDetail.classList.toggle('open', isDetailOpen);
   btnDetail.querySelector('span:last-child').textContent = isDetailOpen ? '접기' : '자세히';
@@ -244,9 +284,9 @@ function toggleDetail() {
 }
 
 // ===== EVENT LISTENERS =====
-btnPrev.addEventListener('click', prevCard);
-btnDetail.addEventListener('click', toggleDetail);
-btnNext.addEventListener('click', nextCard);
+if (btnPrev) btnPrev.addEventListener('click', prevCard);
+if (btnDetail) btnDetail.addEventListener('click', toggleDetail);
+if (btnNext) btnNext.addEventListener('click', nextCard);
 
 if (btnLike) btnLike.addEventListener('click', handleLikeClick);
 if (btnDislike) btnDislike.addEventListener('click', handleDislikeClick);
