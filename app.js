@@ -188,16 +188,13 @@ function renderCard(animate = true) {
 
     // Keep detail state if it was already open
     if (cardDetail && btnDetail) {
-      const btnIcon = btnDetail.querySelector('.btn-icon');
       const btnText = btnDetail.querySelector('span:last-child') || btnDetail.querySelector('span');
       if (!isDetailOpen) {
         cardDetail.classList.remove('open');
         if (btnText) btnText.textContent = '자세히';
-        if (btnIcon) btnIcon.textContent = '🔍';
       } else {
         cardDetail.classList.add('open');
         if (btnText) btnText.textContent = '접기';
-        if (btnIcon) btnIcon.textContent = '📖';
       }
     }
 
@@ -308,8 +305,6 @@ function toggleDetail() {
   cardDetail.classList.toggle('open', isDetailOpen);
   const btnText = btnDetail.querySelector('span:last-child') || btnDetail.querySelector('span');
   if (btnText) btnText.textContent = isDetailOpen ? '접기' : '자세히';
-  const btnIcon = btnDetail.querySelector('.btn-icon');
-  if (btnIcon) btnIcon.textContent = isDetailOpen ? '📖' : '🔍';
 }
 
 // ===== EVENT LISTENERS =====
