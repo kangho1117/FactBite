@@ -52,6 +52,10 @@ const cardActions = document.querySelector('.card-actions');
 const btnLike = document.getElementById('btn-like');
 const likeCount = document.getElementById('like-count');
 
+// Share Button & Toast
+const btnShare = document.getElementById('btn-share');
+const toast = document.getElementById('toast');
+
 // ===== UTILITY =====
 function shuffleArray(arr) {
   const shuffled = [...arr];
@@ -83,11 +87,29 @@ function setVote(id, value) {
   }
 }
 
+// ===== SHARE URL HELPER =====
+function getSharedFactId() {
+  const params = new URLSearchParams(window.location.search);
+  const idStr = params.get('id');
+  return idStr ? parseInt(idStr, 10) : null;
+}
+
+function moveSharedFactToFront(factsArray, targetId) {
+  const idx = factsArray.findIndex(item => item.id === targetId);
+  if (idx > 0) {
+    const [item] = factsArray.splice(idx, 1);
+    factsArray.unshift(item);
+  }
+  // idx === 0 means it's already first; idx === -1 means not found (do nothing)
+}
+
 // ===== INIT =====
 async function init() {
   cardContent.textContent = "로딩 중...";
   detailText.textContent = "";
   if (cardActions) cardActions.style.display = 'none';
+
+  const sharedId = getSharedFactId();
 
   if (supabaseClient) {
     try {
@@ -107,6 +129,7 @@ async function init() {
       if (error) throw error;
       if (data && data.length > 0) {
         shuffledFacts = shuffleArray(data);
+        if (sharedId) moveSharedFactToFront(shuffledFacts, sharedId);
         currentIndex = 0;
         
         renderCard(false);
@@ -134,6 +157,7 @@ async function init() {
       }
     });
     shuffledFacts = shuffleArray(fallbackData);
+    if (sharedId) moveSharedFactToFront(shuffledFacts, sharedId);
     currentIndex = 0;
     
     renderCard(false);
@@ -290,6 +314,7 @@ if (btnDetail) btnDetail.addEventListener('click', toggleDetail);
 if (btnNext) btnNext.addEventListener('click', nextCard);
 
 if (btnLike) btnLike.addEventListener('click', handleLikeClick);
+if (btnShare) btnShare.addEventListener('click', handleShareClick);
 
 // Mouse follow effect on buttons
 document.querySelectorAll('.btn').forEach(btn => {
@@ -315,6 +340,56 @@ document.addEventListener('keydown', (e) => {
     toggleDetail();
   }
 });
+
+// ===== SHARE =====
+function showToast(message) {
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+async function handleShareClick() {
+  const item = shuffledFacts[currentIndex];
+  if (!item || !item.id) return;
+
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('id', item.id);
+  const shareUrl = url.toString();
+
+  // Try native Web Share API (mobile), fall back to clipboard
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'FactBite – 한입 크기 상식',
+        text: item.short,
+        url: shareUrl
+      });
+      return;
+    } catch (e) {
+      // User cancelled or share failed, fall through to clipboard
+      if (e.name === 'AbortError') return;
+    }
+  }
+
+  // Clipboard fallback
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    showToast('📋 링크가 복사되었습니다!');
+  } catch (e) {
+    // Final fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = shareUrl;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('📋 링크가 복사되었습니다!');
+  }
+}
 
 // ===== START =====
 init();
