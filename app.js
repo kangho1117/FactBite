@@ -362,7 +362,6 @@ async function handleShareClick() {
     try {
       await navigator.share({
         title: 'FactBite – 한입 크기 상식',
-        text: item.short,
         url: shareUrl
       });
       return;
