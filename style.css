@@ -490,6 +490,13 @@ body {
   font-weight: 600;
 }
 
+.action-icon-svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
 /* ===== TOAST NOTIFICATION ===== */
 .toast {
   position: fixed;
